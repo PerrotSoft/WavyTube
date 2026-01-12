@@ -20,27 +20,68 @@
             <button id="header-upload-btn" class="upload-trigger hidden" onclick="openUploadModal()">✚</button>
             <input type="text" id="video-search" placeholder="Search (or !channel)..." oninput="handleVideoSearch()">
         </div>
-        <div id="user-avatar" class="user-avatar-btn" onclick="handleProfileClick()"></div>      
+        <button id="theme-toggle-btn" class="icon-btn" onclick="toggleTheme()" title="Toggle theme">🌓</button>
+        <div id="user-avatar" class="user-avatar-btn" onclick="handleProfileClick()"></div>
     </header>
 
     <div id="main-layout" class="layout-grid">
         <section id="video-view-section" class="hidden">
-            <div class="player-container">
-                <video id="main-video-player" controls autoplay></video>
-                <div id="player-loader-bar"></div>
-            </div>
-            <div class="video-meta-bar">
-                <h2 id="view-title"></h2>
-                <div class="author-block" onclick="openCurrentAuthorChannel()">
-                    <div class="large-avatar" id="view-author-avatar"></div>
-                    <div>
-                        <b id="view-author"></b>
-                        <div id="view-stats" style="font-size:12px; color:#aaa;"></div>
+            <div class="custom-player-wrapper" id="player-container">
+                <canvas id="player-canvas" width="1280" height="720"></canvas>
+
+                <div id="player-overlay" class="player-overlay"></div>
+
+                <div class="player-ui">
+                    <div class="progress-area" id="progress-container">
+                        <div class="bar-bg"></div>
+                        <div id="progress-load" class="bar-load"></div>
+                        <div id="progress-play" class="bar-play">
+                            <div class="progress-handle"></div>
+                        </div>
+                    </div>
+
+                    <div class="ui-controls">
+                        <div class="ui-left">
+                            <button onclick="togglePlay()" id="play-pause-btn" class="ui-btn">▶</button>
+                            <button onclick="toggleMute()" id="mute-btn" class="ui-btn">🔊</button>
+                            <span id="timestamp" class="timestamp">0:00 / 0:00</span>
+                        </div>
+                        <div class="ui-right">
+                            <select onchange="setPlaybackSpeed(this.value)" class="ui-select">
+                                <option value="1">1x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                            <button onclick="toggleFullscreen()" class="ui-btn">⛶</button>
+                        </div>
                     </div>
                 </div>
-                <div class="action-btns">
+            </div>
+
+            <div class="video-meta-bar">
+                <h2 id="view-title"></h2>
+                <div class="author-info">
+                    <div class="large-avatar" id="view-author-avatar"></div>
+                    <div class="meta-text">
+                        <b id="view-author"></b>
+                        <span id="view-stats"></span>
+                    </div>
                     <button id="view-sub-btn" class="sub-btn">Subscribe</button>
-                    <button onclick="handleLike()">❤️ <span id="view-likes">0</span></button>
+                    <button onclick="handleLike()" class="like-btn">❤️ <span id="view-likes">0</span></button>
+                </div>
+            </div>
+            <div class="comments-section" id="comments-root">
+                <div class="comments-header" onclick="toggleCommentsMobile()">
+                    <h3>Comments <span id="comments-count">0</span></h3>
+                    <button class="expand-icon">▼</button>
+                </div>
+
+                <div class="comments-content" id="comments-content">
+                    <div class="comment-input-area">
+                        <input type="text" id="comment-text" placeholder="Add a comment...">
+                        <button class="primary-btn" onclick="postComment()">Send</button>
+                    </div>
+                    <div id="comments-list" class="comments-list"></div>
                 </div>
             </div>
         </section>
