@@ -3,34 +3,115 @@ var selectedVideo = null;
 var selectedThumbnail = null;
 var CHUNK_SIZE = 512 * 1024;
 var cachedUsers = {};
+var hiddenVideo = document.createElement('video');
+var canvas, ctx, currentBuffer = [];
+var isBuffering = false;
 
 window.onload = function() {
-    var user = getUsername();
-    if (user !== "Guest") document.getElementById('header-upload-btn').classList.remove('hidden');
-    var theme = localStorage.getItem('theme') || 'dark';
+    const user = getUsername();
+    if (user !== "Guest") {
+        const upBtn = document.getElementById('header-upload-btn');
+        if (upBtn) upBtn.classList.remove('hidden');
+    }
+
+    const theme = localStorage.getItem('theme') || 'dark';
     document.body.setAttribute('data-theme', theme);
-    loadAllVideos().then(function() {
+
+    const avatar = document.getElementById('user-avatar');
+    if (avatar) {
+        avatar.innerText = user.charAt(0).toUpperCase();
+        avatar.style.background = `hsl(${user.length * 40}, 70%, 50%)`;
+    }
+
+    setupCanvasPlayer();
+    loadAllVideos().then(() => {
         handleUrlParams();
     });
 };
 
 window.onhashchange = handleUrlParams;
 
+function setupCanvasPlayer() {
+    canvas = document.getElementById('player-canvas');
+    if (!canvas) return;
+    ctx = canvas.getContext('2d');
+
+    function render() {
+        const needsBuffer = hiddenVideo.readyState < 3 || isBuffering || (hiddenVideo.currentTime > 0 && !hiddenVideo.paused && hiddenVideo.seeking);
+
+        if (needsBuffer && !hiddenVideo.ended) {
+            ctx.fillStyle = "#2a2a2a";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "20px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("Loading data...", canvas.width / 2, canvas.height / 2);
+        } else {
+            try {
+                ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
+            } catch (e) {}
+        }
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+
+    hiddenVideo.ontimeupdate = () => {
+        const p = (hiddenVideo.currentTime / hiddenVideo.duration) * 100 || 0;
+        const bar = document.getElementById('progress-play');
+        if (bar) bar.style.width = p + '%';
+        const ts = document.getElementById('timestamp');
+        if (ts) ts.innerText = formatTime(hiddenVideo.currentTime) + " / " + formatTime(hiddenVideo.duration);
+    };
+
+    const progContainer = document.getElementById('progress-container');
+    if (progContainer) {
+        progContainer.onclick = (e) => {
+            const rect = progContainer.getBoundingClientRect();
+            const clickPos = (e.clientX - rect.left) / rect.width;
+            hiddenVideo.currentTime = clickPos * hiddenVideo.duration;
+        };
+    }
+
+    const overlay = document.getElementById('player-overlay');
+    if (overlay) {
+        let lastClick = 0;
+        overlay.onclick = (e) => {
+            const now = Date.now();
+            if (now - lastClick < 300) {
+                const rect = overlay.getBoundingClientRect();
+                const isRight = (e.clientX - rect.left > rect.width / 2);
+                hiddenVideo.currentTime += isRight ? 10 : -10;
+                showRipple(e.clientX, e.clientY);
+            } else {
+                togglePlay();
+            }
+            lastClick = now;
+        };
+    }
+}
+
 async function handleUrlParams() {
-    var hash = window.location.hash;
+    const hash = window.location.hash;
     if (hash.indexOf('#-=') === 0) {
-        var vidId = hash.substring(3);
-        var snap = await window.db.ref('videos/' + vidId).once('value');
+        const vidId = hash.substring(3);
+        const snap = await window.db.ref('videos/' + vidId).once('value');
         if (snap.exists()) openVideoView(snap.val(), vidId);
     } else if (hash.indexOf('#!') === 0) {
         openChannel(decodeURIComponent(hash.substring(2)));
+    } else {
+        document.body.classList.remove('video-active');
+        document.getElementById('video-view-section').classList.add('hidden');
+        hiddenVideo.pause();
     }
 }
 
 function handleProfileClick() {
-    var user = getUsername();
-    if (user === "Guest") document.getElementById('modal-auth').classList.remove('hidden');
-    else openChannel(user);
+    const user = getUsername();
+    if (user === "Guest") {
+        document.getElementById('modal-auth').classList.remove('hidden');
+    } else {
+        openChannel(user);
+    }
 }
 
 function logout() {
@@ -39,41 +120,101 @@ function logout() {
 }
 
 function handleVideoSearch() {
-    var q = document.getElementById('video-search').value.toLowerCase();
+    const q = document.getElementById('video-search').value.toLowerCase();
     if (q.indexOf('!') === 0) {
-        var channel = q.substring(1);
+        const channel = q.substring(1);
         if (channel.length > 1) openChannel(channel);
         return;
     }
-    document.querySelectorAll('.video-card').forEach(function(c) {
-        c.style.display = c.innerText.toLowerCase().indexOf(q) !== -1 ? 'flex' : 'none';
+    document.querySelectorAll('.video-card').forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(q) ? 'flex' : 'none';
     });
 }
+async function postComment() {
+    const me = getUsername();
+    const text = document.getElementById('comment-text').value.trim();
 
-function openCurrentAuthorChannel() {
-    var author = document.getElementById('view-author').innerText;
-    if (author) openChannel(author);
+    if (me === "Guest") return alert("Please log in to comment");
+    if (!text || !currentPlayingId) return;
+
+    const newComment = {
+        author: me,
+        text: text,
+        timestamp: Date.now()
+    };
+
+    await window.db.ref(`video_comments/${currentPlayingId}`).push(newComment);
+
+    document.getElementById('comment-text').value = "";
+    loadComments(currentPlayingId);
 }
 
+async function loadComments(videoId) {
+    const listEl = document.getElementById('comments-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = "Loading comments...";
+
+    const snap = await window.db.ref(`video_comments/${videoId}`).once('value');
+    listEl.innerHTML = "";
+
+    if (snap.exists()) {
+        const comments = snap.val();
+        Object.values(comments).reverse().forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'comment-item';
+            div.innerHTML = `
+                <div class="comment-author"><b>${c.author}</b> <small>${new Date(c.timestamp).toLocaleDateString()}</small></div>
+                <div class="comment-text">${c.text}</div>
+            `;
+            listEl.appendChild(div);
+        });
+    } else {
+        listEl.innerHTML = "<p style='color: #aaa;'>No comments yet. Be the first!</p>";
+    }
+}
 async function loadAllVideos() {
-    var vRes = await window.db.ref('videos').once('value');
-    var uSnap = await window.db.ref('users').once('value');
+    const container = document.getElementById("video-feed");
+    if (!container) return;
+
+    const vRes = await window.db.ref('videos').once('value');
+    const uSnap = await window.db.ref('users').once('value');
     if (!vRes.exists()) return;
-    var vData = vRes.val();
-    cachedUsers = uSnap.val() || {};
-    var container = document.getElementById("video-feed");
+
+    const vData = vRes.val();
+    const allUsers = uSnap.val() || {};
+    const currentUser = getUsername();
+
+    RecommendationSystem.setVideoList(vData, allUsers, currentUser);
+    const sortedIds = RecommendationSystem.getSortedIds();
+
     container.innerHTML = "";
-    Object.keys(vData).reverse().forEach(function(id) {
-        var data = vData[id];
-        var card = document.createElement("div");
+    sortedIds.forEach(id => {
+        const data = vData[id];
+        const card = document.createElement("div");
         card.className = "video-card";
-        card.onclick = function() {
-            window.location.hash = '-=' + id;
-            openVideoView(data, id);
-        };
-        var uInfo = cachedUsers[data.author] || {};
-        var avatarStyle = uInfo.avatar ? 'style="background-image:url(' + uInfo.avatar + '); background-size:cover; background-position:center;"' : "";
-        card.innerHTML = '<img src="' + (data.thumbnail || '') + '"><div class="video-info"><div class="author-avatar-mini" ' + avatarStyle + ' onclick="event.stopPropagation(); openChannel(\'' + data.author + '\')"></div><div class="video-text"><b>' + data.title + '</b><br><small>' + data.author + '</small><br><small>' + (data.views || 0) + ' views</small></div></div>';
+        card.onclick = () => window.location.hash = '-=' + id;
+
+        const uInfo = allUsers[data.author] || {};
+        const avatarBg = uInfo.avatar ?
+            `background-image:url(${uInfo.avatar}); background-size:cover; background-position:center;` :
+            `background-color: hsl(${data.author.length * 40}, 70%, 50%);`;
+
+        card.innerHTML = `
+            <div class="thumbnail-wrapper">
+                <img src="${data.thumbnail || ''}" loading="lazy">
+            </div>
+            <div class="video-info">
+                <div class="author-avatar-mini" style="${avatarBg}" onclick="event.stopPropagation(); openChannel('${data.author}')">
+                    ${uInfo.avatar ? '' : data.author.charAt(0).toUpperCase()}
+                </div>
+                <div class="video-text">
+                    <b class="v-title">${data.title}</b>
+                    <small class="v-author">${data.author}</small>
+                    <small class="v-meta">${data.views || 0} views</small>
+                </div>
+            </div>`;
         container.appendChild(card);
     });
 }
@@ -91,7 +232,8 @@ async function openChannel(targetUser) {
     const userSnap = await window.db.ref('users/' + targetUser).once('value');
     const userData = userSnap.val() || {};
 
-    let tV = 0, vC = 0;
+    let tV = 0,
+        vC = 0;
     const vRes = await window.db.ref('videos').once('value');
 
     if (vRes.exists()) {
@@ -100,13 +242,29 @@ async function openChannel(targetUser) {
                 vC++;
                 tV += (data.views || 0);
                 const div = document.createElement("div");
-                div.className = "video-card";
-                let delBtn = isOwner ? `<button class="secondary-btn" onclick="event.stopPropagation(); deleteVid('${id}', '${data.fileId}')">Delete</button>` : "";
-                div.onclick = function() {
+                div.className = "channel-video-card";
+
+                div.onclick = () => {
                     document.getElementById('channel-modal').classList.add('hidden');
-                    openVideoView(data, id);
+                    window.location.hash = '-=' + id;
                 };
-                div.innerHTML = `<img src="${data.thumbnail}"><div class="video-info"><div class="video-text"><b>${data.title}</b><small>${data.views || 0} views</small></div></div>${delBtn}`;
+
+                let delBtnHtml = isOwner ? `
+            <div class="card-footer">
+                <button class="delete-btn-simple" onclick="event.stopPropagation(); deleteVid('${id}', '${data.fileId}')">Удалить</button>
+            </div>` : "";
+
+                div.innerHTML = `
+            <div class="card-main-content">
+                <img src="${data.thumbnail}">
+                <div class="video-info">
+                    <div class="video-text">
+                        <b>${data.title}</b>
+                        <small>${data.views || 0} views</small>
+                    </div>
+                </div>
+            </div>
+            ${delBtnHtml}`;
                 list.appendChild(div);
             }
         });
@@ -114,14 +272,12 @@ async function openChannel(targetUser) {
 
     const subCount = userData.subscribers ? Object.keys(userData.subscribers).length : 0;
     document.getElementById('ch-name').innerText = targetUser;
-    document.getElementById('ch-subs-count').innerHTML = `${subCount} subs • ${vC} videos • ${tV} views`;
-    document.getElementById('ch-desc-text').innerText = userData.description || "";
-    
-    var avatarLetter = document.getElementById('ch-avatar-letter');
+    document.getElementById('ch-subs-count').innerText = `${subCount} subs • ${vC} videos • ${tV} views`;
+    document.getElementById('ch-desc-text').innerText = userData.description || "No description.";
+
+    const avatarLetter = document.getElementById('ch-avatar-letter');
     if (userData.avatar) {
         avatarLetter.style.backgroundImage = `url(${userData.avatar})`;
-        avatarLetter.style.backgroundSize = "cover";
-        avatarLetter.style.backgroundPosition = "center";
         avatarLetter.innerText = "";
     } else {
         avatarLetter.style.backgroundImage = "none";
@@ -135,195 +291,340 @@ async function openChannel(targetUser) {
         `;
     } else {
         const subBtn = document.createElement('button');
-        subBtn.id = "ch-modal-sub-btn";
         subBtn.className = "primary-btn";
         const isSubbed = userData.subscribers && userData.subscribers[me];
-        subBtn.innerText = isSubbed ? "Вы подписаны" : "Подписаться";
-        subBtn.onclick = function() { toggleSub(targetUser); };
+        subBtn.innerText = isSubbed ? "Subscribed" : "Subscribe";
+        subBtn.onclick = () => toggleSub(targetUser);
         actionsDiv.appendChild(subBtn);
     }
 }
 
-function updateSubButton(targetUser, userData) {
-    var me = getUsername();
-    var actionsDiv = document.getElementById('ch-actions');
-    var viewSubBtn = document.getElementById('view-sub-btn');
-    var isSubbed = userData.subscribers && userData.subscribers[me];
-    var btnHtml = (me !== "Guest" && me !== targetUser) ? '<button class="sub-btn" onclick="toggleSub(\'' + targetUser + '\')">' + (isSubbed ? 'Subscribed' : 'Subscribe') + '</button>' : (me === targetUser ? '<button class="secondary-btn" onclick="openSettings()">⚙️</button>' : '');
-    if (actionsDiv) actionsDiv.innerHTML = btnHtml;
-    if (viewSubBtn) {
-        viewSubBtn.innerText = isSubbed ? 'Subscribed' : 'Subscribe';
-        viewSubBtn.onclick = function() { toggleSub(targetUser); };
-    }
-}
-
 async function toggleSub(targetUser) {
-    var me = getUsername();
-    if (me === "Guest") return alert("Log in");
-    var ref = window.db.ref('users/' + targetUser + '/subscribers/' + me);
-    var snap = await ref.once('value');
+    const me = getUsername();
+    if (me === "Guest") return alert("Please log in");
+    const ref = window.db.ref(`users/${targetUser}/subscribers/${me}`);
+    const snap = await ref.once('value');
     if (snap.exists()) await ref.remove();
     else await ref.set(true);
-    var newUserSnap = await window.db.ref('users/' + targetUser).once('value');
-    updateSubButton(targetUser, newUserSnap.val() || {});
-    if (!document.getElementById('channel-modal').classList.contains('hidden')) openChannel(targetUser);
+    openChannel(targetUser);
+}
+
+async function deleteVid(id, fileId) {
+    if (confirm('Delete this video?')) {
+        await window.db.ref('videos/' + id).remove();
+        await window.db.ref('file_chunks/' + fileId).remove();
+        location.reload();
+    }
 }
 
 async function openSettings() {
-    var me = getUsername();
-    if (me === "Guest") return;
-    var userData = cachedUsers[me];
-    if (!userData) {
-        var snap = await window.db.ref('users/' + me).once('value');
-        userData = snap.val() || {};
-        cachedUsers[me] = userData;
-    }
+    const me = getUsername();
+    const snap = await window.db.ref('users/' + me).once('value');
+    const userData = snap.val() || {};
     document.getElementById('set-new-name').value = me;
     document.getElementById('set-desc').value = userData.description || "";
     document.getElementById('modal-settings').classList.remove('hidden');
 }
 
 async function saveChannelSettings() {
-    var oldName = getUsername(),
-        newName = document.getElementById('set-new-name').value.trim(),
-        newDesc = document.getElementById('set-desc').value.trim(),
-        avatarFile = document.getElementById('set-avatar-file').files[0];
+    const oldName = getUsername();
+    const newName = document.getElementById('set-new-name').value.trim();
+    const newDesc = document.getElementById('set-desc').value.trim();
+    const avatarFile = document.getElementById('set-avatar-file').files[0];
+
     if (newName.length < 2) return;
-    var updates = { description: newDesc };
+    const updates = { description: newDesc };
     if (avatarFile) updates.avatar = await resizeImage(avatarFile, 200);
+
     if (newName !== oldName) {
-        var check = await window.db.ref('users/' + newName).once('value');
-        if (check.exists()) return alert("Taken");
-        var oldDataSnap = await window.db.ref('users/' + oldName).once('value');
-        var oldData = oldDataSnap.val() || {};
-        var finalData = Object.assign({}, oldData, updates);
+        const check = await window.db.ref('users/' + newName).once('value');
+        if (check.exists()) return alert("Username taken");
+
+        const oldDataSnap = await window.db.ref('users/' + oldName).once('value');
+        const finalData = Object.assign({}, oldDataSnap.val(), updates);
+
         await window.db.ref('users/' + newName).set(finalData);
-        var vSnap = await window.db.ref('videos').once('value');
+        const vSnap = await window.db.ref('videos').once('value');
         if (vSnap.exists()) {
-            var vData = vSnap.val();
-            for (var vidId in vData) { if (vData[vidId].author === oldName) await window.db.ref('videos/' + vidId + '/author').set(newName); }
+            const vData = vSnap.val();
+            for (let vidId in vData) {
+                if (vData[vidId].author === oldName) {
+                    await window.db.ref(`videos/${vidId}/author`).set(newName);
+                }
+            }
         }
         await window.db.ref('users/' + oldName).remove();
-        setCookie("username", newName);
-    } else { await window.db.ref('users/' + oldName).update(updates); }
+        document.cookie = `username=${encodeURIComponent(newName)}; path=/;`;
+    } else {
+        await window.db.ref('users/' + oldName).update(updates);
+    }
     location.reload();
 }
 
 async function openVideoView(data, id) {
     currentPlayingId = id;
+    currentBuffer = new Array(data.totalChunks).fill(null);
+    isBuffering = true;
+
     document.body.classList.add('video-active');
     document.getElementById('video-view-section').classList.remove('hidden');
+
+    const titleEl = document.getElementById('view-title');
+    const authorEl = document.getElementById('view-author');
+    const avDiv = document.getElementById('view-author-avatar');
+
+    titleEl.innerText = data.title;
+    authorEl.innerText = data.author;
     document.getElementById('back-btn').classList.remove('hidden');
-    document.getElementById('view-title').innerText = data.title;
-    document.getElementById('view-author').innerText = data.author;
-    var likesCount = data.likes ? Object.keys(data.likes).length : 0;
-    document.getElementById('view-likes').innerText = likesCount;
-    var uSnap = await window.db.ref('users/' + data.author).once('value');
-    var uData = uSnap.val() || {};
-    var avDiv = document.getElementById('view-author-avatar');
+
+    const goToChannel = () => openChannel(data.author);
+    authorEl.onclick = goToChannel;
+    if (avDiv) avDiv.onclick = goToChannel;
+    loadComments(id);
     if (avDiv) {
-        avDiv.style.backgroundImage = uData.avatar ? 'url(' + uData.avatar + ')' : 'none';
-        avDiv.style.backgroundSize = "cover";
-        avDiv.style.backgroundPosition = "center";
+        avDiv.style.backgroundImage = 'none';
+        avDiv.innerText = '';
+        window.db.ref('users/' + data.author).once('value').then(snap => {
+            const uData = snap.val();
+            if (uData && uData.avatar) {
+                avDiv.style.backgroundImage = `url(${uData.avatar})`;
+                avDiv.innerText = "";
+            } else {
+                avDiv.innerText = data.author.charAt(0).toUpperCase();
+                avDiv.style.backgroundColor = `hsl(${data.author.length * 40}, 70%, 50%)`;
+            }
+        });
     }
-    updateSubButton(data.author, uData);
-    window.db.ref('videos/' + id + '/views').transaction(function(c) { return (c || 0) + 1; });
-    var player = document.getElementById('main-video-player');
-    var fullB64 = "";
-    for (var i = 0; i < data.totalChunks; i++) {
-        var chunk = await window.db.ref('file_chunks/' + data.fileId + '/chunk_' + i).once('value');
-        if (chunk.exists()) { fullB64 += chunk.val(); if (i === 0) playStream(fullB64, player); }
+
+    const likesCount = data.likes ? Object.keys(data.likes).length : 0;
+    document.getElementById('view-likes').innerText = likesCount;
+
+    window.db.ref('videos/' + id + '/views').transaction(c => (c || 0) + 1);
+
+    const firstChunk = await window.db.ref(`file_chunks/${data.fileId}/chunk_0`).once('value');
+    if (firstChunk.exists()) {
+        currentBuffer[0] = base64ToArrayBuffer(firstChunk.val());
+        refreshSource();
     }
-    playStream(fullB64, player);
+    for (let i = 1; i < data.totalChunks; i++) {
+        window.db.ref(`file_chunks/${data.fileId}/chunk_${i}`).once('value').then(snap => {
+            if (snap.exists()) {
+                currentBuffer[i] = base64ToArrayBuffer(snap.val());
+                const loaded = currentBuffer.filter(Boolean).length;
+                const loadBar = document.getElementById('progress-load');
+                if (loadBar) loadBar.style.width = (loaded / data.totalChunks * 100) + '%';
+
+                if (loaded % 5 === 0 || loaded === data.totalChunks) refreshSource(true);
+            }
+        });
+    }
 }
 
-function playStream(b64, p) {
-    try {
-        var raw = b64.indexOf(",") !== -1 ? b64.split(",")[1] : b64;
-        var bin = atob(raw), bytes = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        var t = p.currentTime;
-        p.src = URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
-        p.currentTime = t;
-    } catch (e) {}
+function toggleCommentsMobile() {
+    if (window.innerWidth <= 768) {
+        const root = document.getElementById('comments-root');
+        root.classList.toggle('expanded');
+    }
+}
+
+function toggleTheme() {
+    const body = document.body;
+    const currentTheme = body.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+    body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+        btn.innerText = newTheme === 'dark' ? '🌙' : '☀️';
+    }
+}
+var currentBlobUrl = null; // Глобальная переменная для отслеживания текущей ссылки
+
+function refreshSource(keepPos = false) {
+    const pos = hiddenVideo.currentTime;
+    const isPaused = hiddenVideo.paused;
+
+    // Очищаем старую ссылку из памяти перед созданием новой
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+    }
+
+    const blob = new Blob(currentBuffer.filter(Boolean), { type: 'video/mp4' });
+    currentBlobUrl = URL.createObjectURL(blob);
+
+    hiddenVideo.src = currentBlobUrl;
+
+    if (keepPos) {
+        hiddenVideo.onloadedmetadata = () => {
+            hiddenVideo.currentTime = pos;
+            if (!isPaused) hiddenVideo.play().catch(() => {});
+            isBuffering = false;
+        };
+    } else {
+        hiddenVideo.play().catch(() => {});
+        isBuffering = false;
+    }
 }
 
 async function handleLike() {
-    var me = getUsername();
+    const me = getUsername();
     if (me === "Guest" || !currentPlayingId) return;
-    var ref = window.db.ref('videos/' + currentPlayingId + '/likes/' + me);
-    var snap = await ref.once('value');
+    const ref = window.db.ref(`videos/${currentPlayingId}/likes/${me}`);
+    const snap = await ref.once('value');
     if (snap.exists()) await ref.remove();
     else await ref.set(true);
-    var newSnap = await window.db.ref('videos/' + currentPlayingId + '/likes').once('value');
+
+    const newSnap = await window.db.ref(`videos/${currentPlayingId}/likes`).once('value');
     document.getElementById('view-likes').innerText = newSnap.exists() ? Object.keys(newSnap.val()).length : 0;
 }
 
 async function startVideoUpload() {
-    var title = document.getElementById('v-title').value;
-    var btn = document.getElementById('upload-btn');
-    if (!title || !selectedVideo) return alert("Fill in the title and select a video");
+    const title = document.getElementById('v-title').value.trim();
+    const btn = document.getElementById('upload-btn');
+    if (!title || !selectedVideo) return alert("Select file and title");
+
     btn.disabled = true;
-    var fId = "vid_" + Date.now();
-    var customThumbFile = document.getElementById('v-custom-thumb').files[0];
-    var finalThumbnail = customThumbFile ? await resizeImage(customThumbFile, 320) : selectedThumbnail;
-    var b64 = selectedVideo.content.split(",")[1];
-    var total = Math.ceil(b64.length / CHUNK_SIZE);
-    for (var i = 0; i < total; i++) {
-        btn.innerText = Math.round((i / total) * 100) + "%";
-        await window.db.ref('file_chunks/' + fId + '/chunk_' + i).set(b64.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
+    const fileId = "vid_" + Date.now();
+    const arrayBuffer = await selectedVideo.arrayBuffer();
+    const totalChunks = Math.ceil(arrayBuffer.byteLength / CHUNK_SIZE);
+
+    const customThumbFile = document.getElementById('v-custom-thumb').files[0];
+    const finalThumbnail = customThumbFile ? await resizeImage(customThumbFile, 320) : selectedThumbnail;
+
+    for (let i = 0; i < totalChunks; i++) {
+        const chunk = arrayBuffer.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const b64 = btoa(new Uint8Array(chunk).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        await window.db.ref(`file_chunks/${fileId}/chunk_${i}`).set(b64);
+        btn.innerText = `Uploading: ${Math.round((i/totalChunks)*100)}%`;
     }
+
     await window.db.ref('videos').push({
-        title: title,
+        title,
         author: getUsername(),
-        fileId: fId,
-        totalChunks: total,
-        thumbnail: finalThumbnail,
-        views: 0,
-        timestamp: Date.now()
+        fileId,
+        totalChunks,
+        thumbnail: finalThumbnail || "",
+        timestamp: Date.now(),
+        views: 0
     });
     location.reload();
 }
 
 function handleVideoSelect(input) {
-    var file = input.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = async function(e) {
-        selectedVideo = { content: e.target.result };
-        selectedThumbnail = await captureFrame(e.target.result);
-        document.getElementById('preview-img').src = selectedThumbnail;
-        document.getElementById('preview-container').classList.remove('hidden');
+    if (input.files && input.files[0]) {
+        selectedVideo = input.files[0];
         document.getElementById('upload-btn').classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
+
+        const v = document.createElement('video');
+        v.src = URL.createObjectURL(selectedVideo);
+        v.muted = true;
+        v.play();
+
+        v.onloadeddata = () => {
+            setTimeout(() => {
+                const c = document.createElement('canvas');
+                c.width = 640;
+                c.height = 360;
+                c.getContext('2d').drawImage(v, 0, 0, 640, 360);
+                selectedThumbnail = c.toDataURL('image/jpeg', 0.8);
+                document.getElementById('preview-img').src = selectedThumbnail;
+                document.getElementById('preview-container').classList.remove('hidden');
+                v.pause();
+                URL.revokeObjectURL(v.src);
+            }, 1000);
+        };
+    }
 }
 
-function captureFrame(b) {
-    return new Promise(function(r) {
-        var v = document.createElement('video');
-        v.src = b;
-        v.onloadeddata = function() { v.currentTime = 1; };
-        v.onseeked = function() {
-            var c = document.createElement('canvas');
-            c.width = 320;
-            c.height = 180;
-            c.getContext('2d').drawImage(v, 0, 0, 320, 180);
-            r(c.toDataURL('image/jpeg', 0.6));
-        };
-    });
+function setPlaybackSpeed(val) {
+    hiddenVideo.playbackRate = parseFloat(val);
+}
+
+function toggleFullscreen() {
+    const container = document.getElementById('player-container');
+    if (!document.fullscreenElement) {
+        if (container.requestFullscreen) container.requestFullscreen();
+        else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+function togglePlay() {
+    if (hiddenVideo.paused) hiddenVideo.play().catch(() => {});
+    else hiddenVideo.pause();
+    const btn = document.getElementById('play-pause-btn');
+    if (btn) btn.innerText = hiddenVideo.paused ? "▶" : "⏸";
+}
+
+function toggleMute() {
+    hiddenVideo.muted = !hiddenVideo.muted;
+    const btn = document.getElementById('mute-btn');
+    if (btn) btn.innerText = hiddenVideo.muted ? "🔇" : "🔊";
+}
+
+function closeVideoView() {
+    window.location.hash = "";
+    document.body.classList.remove('video-active');
+    document.getElementById('video-view-section').classList.add('hidden');
+
+    hiddenVideo.pause();
+    hiddenVideo.src = "";
+
+    // Полная очистка памяти
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
+    }
+    currentBuffer = [];
+}
+
+function openUploadModal() {
+    document.getElementById('modal-upload').classList.remove('hidden');
+}
+
+function closeModal(id) {
+    if (id === 'channel-modal') window.location.hash = "";
+    document.getElementById(id).classList.add('hidden');
+}
+
+function formatTime(s) {
+    if (isNaN(s)) return "0:00";
+    const m = Math.floor(s / 60),
+        sec = Math.floor(s % 60);
+    return m + ":" + (sec < 10 ? "0" + sec : sec);
+}
+
+function base64ToArrayBuffer(b64) {
+    // Убираем префикс Data URL, если он есть
+    const base64String = b64.includes(',') ? b64.split(',')[1] : b64;
+    const bin = atob(base64String);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = bin.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+function getUsername() {
+    const match = document.cookie.match(new RegExp('(^| )username=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : "Guest";
 }
 
 function resizeImage(file, size) {
-    return new Promise(function(r) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            var img = new Image();
-            img.onload = function() {
-                var c = document.createElement('canvas'), ctx = c.getContext('2d');
-                var w = size, h = img.height * (size / img.width);
-                c.width = w; c.height = h;
-                ctx.drawImage(img, 0, 0, w, h);
+    return new Promise(r => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const c = document.createElement('canvas');
+                const h = img.height * (size / img.width);
+                c.width = size;
+                c.height = h;
+                c.getContext('2d').drawImage(img, 0, 0, size, h);
                 r(c.toDataURL('image/jpeg', 0.7));
             };
             img.src = e.target.result;
@@ -332,25 +633,11 @@ function resizeImage(file, size) {
     });
 }
 
-function closeModal(id) {
-    if (id === 'channel-modal') window.location.hash = "";
-    document.getElementById(id).classList.add('hidden');
+function showRipple(x, y) {
+    const r = document.createElement('div');
+    r.className = 'ripple-effect';
+    r.style.left = x + 'px';
+    r.style.top = y + 'px';
+    document.body.appendChild(r);
+    setTimeout(() => r.remove(), 400);
 }
-
-function closeVideoView() {
-    window.location.hash = "";
-    document.body.classList.remove('video-active');
-    document.getElementById('video-view-section').classList.add('hidden');
-    document.getElementById('main-video-player').pause();
-}
-
-function openUploadModal() { document.getElementById('modal-upload').classList.remove('hidden'); }
-
-window.openEditVideo = async function(id) {
-    var snap = await window.db.ref('videos/' + id).once('value'), data = snap.val();
-    var newTitle = prompt("Title:", data.title), newDesc = prompt("Description:", data.description || "");
-    if (newTitle !== null) {
-        await window.db.ref('videos/' + id).update({ title: newTitle, description: newDesc });
-        openChannel(data.author);
-    }
-};

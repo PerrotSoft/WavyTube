@@ -83,13 +83,11 @@ body {
     gap: 24px;
 }
 
-
 body.video-active #video-view-section {
     flex: 1;
     min-width: 0;
     display: block;
 }
-
 
 body.video-active #video-feed {
     width: 400px;
@@ -366,37 +364,611 @@ button {
     height: 100%;
     object-fit: cover;
 }
+
 @media (max-width: 768px) {
-    .main-header { padding: 0 12px; }
-    .search-bar { 
+    .main-header {
+        padding: 0 12px;
+    }
+    .search-bar {
         display: flex;
         flex-direction: row-reverse;
-        flex: 1; 
+        flex: 1;
         min-width: 0;
-        max-width: 65%; 
+        max-width: 65%;
         gap: 8px;
     }
-
-    .search-bar input { 
-        width: 100%; 
+    .search-bar input {
+        width: 100%;
         min-width: 0;
         flex: 1;
     }
-    .layout-grid { padding: 0; flex-direction: column; gap: 0; }
-    .video-grid { gap: 0; }
-    
-    .video-card { gap: 0; margin-bottom: 15px; }
-    .video-card img { border-radius: 0; }
-    .video-info { padding: 12px; }
+    .layout-grid {
+        padding: 0;
+        flex-direction: column;
+        gap: 0;
+    }
+    .video-grid {
+        gap: 0;
+    }
+    .video-card {
+        gap: 0;
+        margin-bottom: 15px;
+    }
+    .video-card img {
+        border-radius: 0;
+    }
+    .video-info {
+        padding: 12px;
+    }
+    body.video-active .layout-grid {
+        flex-direction: column;
+    }
+    body.video-active #video-feed {
+        width: 100%;
+        padding: 10px;
+    }
+    body.video-active .video-card {
+        flex-direction: row;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    body.video-active .video-card img {
+        width: 140px;
+        height: 80px;
+        border-radius: 8px;
+    }
+    .channel-container {
+        width: 100%;
+        height: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+    .channel-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+    }
+    .ch-profile {
+        flex-direction: column;
+    }
+    .auth-card,
+    .upload-card {
+        width: 95%;
+        margin: auto;
+    }
+}
 
-    body.video-active .layout-grid { flex-direction: column; }
-    body.video-active #video-feed { width: 100%; padding: 10px; }
-    body.video-active .video-card { flex-direction: row; gap: 10px; margin-bottom: 8px; }
-    body.video-active .video-card img { width: 140px; height: 80px; border-radius: 8px; }
+.custom-player-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    background: #000;
+    aspect-ratio: 16/9;
+}
 
-    .channel-container { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
-    .channel-header { flex-direction: column; text-align: center; gap: 15px; }
-    .ch-profile { flex-direction: column; }
-    
-    .auth-card, .upload-card { width: 95%; margin: auto; }
+#player-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.player-ui {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    padding-bottom: 5px;
+}
+
+.progress-area {
+    position: relative;
+    height: 5px;
+    width: 98%;
+    margin: 0 auto 10px;
+    cursor: pointer;
+}
+
+.bar-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #444;
+}
+
+.bar-load {
+    position: absolute;
+    width: 0%;
+    height: 100%;
+    background: #fff;
+    opacity: 0.3;
+    transition: 0.3s;
+}
+
+.bar-play {
+    position: absolute;
+    width: 0%;
+    height: 100%;
+    background: #f00;
+    z-index: 2;
+}
+
+.ui-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 15px;
+}
+
+.ui-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.ui-select {
+    background: #222;
+    color: white;
+    border: 1px solid #444;
+    border-radius: 4px;
+}
+
+.large-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    background-size: cover;
+}
+
+.custom-player-wrapper {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.player-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80%;
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: all;
+}
+
+.progress-area {
+    position: relative;
+    height: 4px;
+    width: 98%;
+    margin: 0 auto 10px;
+    cursor: pointer;
+    transition: height 0.1s;
+}
+
+.progress-area:hover {
+    height: 8px;
+}
+
+.progress-handle {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: #f00;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.progress-area:hover .progress-handle {
+    opacity: 1;
+}
+
+.bar-play {
+    position: absolute;
+    height: 100%;
+    background: #f00;
+    z-index: 2;
+    width: 0%;
+}
+
+.ripple-effect {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 0.4s linear;
+}
+
+:root,
+[data-theme="dark"] {
+    --bg: #0f0f0f;
+    --text: #ffffff;
+    --card-bg: #1e1e1e;
+    --border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] {
+    --bg: #f9f9f9;
+    --text: #0f0f0f;
+    --card-bg: #ffffff;
+    --border: rgba(0, 0, 0, 0.1);
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(2.5);
+        opacity: 0;
+    }
+}
+
+:root {
+    --accent: #ff0000;
+    --player-bg: #000;
+    --ui-text: #fff;
+    --glass: rgba(255, 255, 255, 0.1);
+}
+
+.custom-player-wrapper {
+    position: relative;
+    background: var(--player-bg);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    aspect-ratio: 16/9;
+}
+
+#player-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.player-ui {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.custom-player-wrapper:hover .player-ui {
+    opacity: 1;
+}
+
+.progress-area {
+    position: relative;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    margin-bottom: 15px;
+    border-radius: 2px;
+}
+
+.bar-load {
+    position: absolute;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.3);
+    width: 0;
+}
+
+.bar-play {
+    position: absolute;
+    height: 100%;
+    background: var(--accent);
+    width: 0;
+}
+
+.progress-handle {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+.ui-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ui-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px 10px;
+    transition: transform 0.1s;
+}
+
+.ui-btn:hover {
+    transform: scale(1.1);
+}
+
+.ripple-effect {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    animation: ripple 0.5s ease-out;
+    pointer-events: none;
+    z-index: 5;
+}
+
+@keyframes ripple {
+    to {
+        transform: translate(-50%, -50%) scale(2);
+        opacity: 0;
+    }
+}
+
+.author-avatar-mini,
+.view-author-avatar,
+.user-avatar-btn {
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    background-color: var(--glass);
+    flex-shrink: 0;
+}
+
+#view-author {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+#view-author:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+.comments-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--card-bg);
+    border-radius: 8px;
+}
+
+.comment-input-area {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.comment-input-area input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+}
+
+.video-card-channel {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: var(--card-bg, #1e1e1e);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+    height: 100%;
+    min-height: 220px;
+}
+
+
+/* Стили для карточки видео на странице канала */
+
+.channel-video-card {
+    display: flex;
+    flex-direction: column;
+    /* Элементы располагаются вертикально */
+    background: var(--card-bg, #1e1e1e);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.channel-video-card:hover {
+    transform: translateY(-4px);
+    background: #2a2a2a;
+}
+
+.card-main-content img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.card-main-content .video-info {
+    padding: 10px;
+}
+
+.card-main-content b {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 4px;
+    color: var(--text, #fff);
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    /* Полупрозрачный белый */
+    border-radius: 10px;
+    /* Скругленные края */
+    border: 2px solid transparent;
+    /* Отступ от краев, создающий эффект тонкой полоски */
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+
+/* Футер, который всегда будет внизу */
+
+.card-footer {
+    margin-top: auto;
+    /* Это свойство прижимает блок к низу */
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.delete-btn-simple {
+    width: 100%;
+    padding: 8px;
+    background: #ff4757;
+    /* Красный цвет для удаления */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.delete-btn-simple:hover {
+    background: #ff6b81;
+}
+
+.video-card-channel:hover {
+    transform: translateY(-4px);
+}
+
+.card-content-top img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.video-info {
+    padding: 10px;
+}
+
+.delete-container {
+    padding: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.delete-btn-simple {
+    width: 100%;
+    padding: 8px;
+    background: #ff4757;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.delete-btn-simple:hover {
+    background: #ff6b81;
+}
+
+.comment-item {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.comment-author {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.comment-text {
+    font-size: 15px;
+}
+
+.comments-header {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: var(--card-bg);
+    cursor: pointer;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+    .comments-header {
+        display: flex;
+    }
+    .comments-content {
+        display: none;
+        padding: 10px;
+        background: var(--bg);
+    }
+    .comments-section.expanded .comments-content {
+        display: block;
+    }
+    .comments-section.expanded .expand-icon {
+        transform: rotate(180deg);
+    }
+}
+
+.comments-list {
+    max-height: 500px;
+    overflow-y: auto;
 }
