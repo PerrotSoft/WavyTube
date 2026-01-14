@@ -1,31 +1,45 @@
 async function performLogin() {
-    const name = document.getElementById('auth-username').value.trim();
-    if (name.length < 2 || name.toLowerCase() === "guest") return alert("Invalid name");
-    const pass = prompt("Enter password (minimum 4 characters):");
-    if (!pass || pass.length < 4) return alert("Password too short");
-    const userRef = window.db.ref('users/' + name);
-    const snap = await userRef.once('value');
-    if (snap.exists()) {
-        const userData = snap.val();
-        if (userData.password === pass) {
-            setCookie("username", name);
-            location.reload();
-        } else {
-            alert("Wrong password!");
+    const username = document.getElementById('auth-username').value.trim();
+    const birthdayInput = document.getElementById('auth-birthday').value;
+    
+    if (username.length < 2) return alert("Nickname too short");
+
+    let age = 10;
+    if (birthdayInput) {
+        const birthDate = new Date(birthdayInput);
+        const today = new Date();
+        age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
         }
-    } else {
-        await userRef.set({
-            password: pass,
-            description: "New WavyTube user",
-            subscribers: {},
-            registeredAt: Date.now()
-        });
-        setCookie("username", name);
-        alert("Account created!");
-        location.reload();
     }
+
+    const userRef = window.db.ref('users/' + username);
+    const snap = await userRef.once('value');
+
+    if (!snap.exists()) {
+        await userRef.set({
+            username: username,
+            age: age,
+            registrationDate: Date.now(),
+            description: "New user"
+        });
+    } else {
+        await userRef.update({ age: age });
+    }
+
+    document.cookie = `username=${encodeURIComponent(username)}; path=/; max-age=31536000`;
+    document.cookie = `userage=${age}; path=/; max-age=31536000`;
+    
+    location.reload();
 }
 
+function getUserAge() {
+    const match = document.cookie.match(new RegExp('(^| )userage=([^;]+)'));
+    console.log(match ? parseInt(match[2]) : 10);
+    return match ? parseInt(match[2]) : 10;
+}
 function setCookie(name, value, days = 7) {
     var d = new Date();
     d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
