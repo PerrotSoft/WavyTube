@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WavyTube</title>
     <link rel="stylesheet" href="css/site.css">
+    <link rel="icon" href="WavyChatApp.ico" type="image/x-icon">
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -20,27 +21,79 @@
             <button id="header-upload-btn" class="upload-trigger hidden" onclick="openUploadModal()">✚</button>
             <input type="text" id="video-search" placeholder="Search (or !channel)..." oninput="handleVideoSearch()">
         </div>
-        <div id="user-avatar" class="user-avatar-btn" onclick="handleProfileClick()"></div>      
+        <button id="theme-toggle-btn" class="icon-btn" onclick="toggleTheme()" title="Toggle theme">🌓</button>
+        <div id="user-avatar" class="user-avatar-btn" onclick="handleProfileClick()"></div>
     </header>
 
     <div id="main-layout" class="layout-grid">
         <section id="video-view-section" class="hidden">
-            <div class="player-container">
-                <video id="main-video-player" controls autoplay></video>
-                <div id="player-loader-bar"></div>
-            </div>
-            <div class="video-meta-bar">
-                <h2 id="view-title"></h2>
-                <div class="author-block" onclick="openCurrentAuthorChannel()">
-                    <div class="large-avatar" id="view-author-avatar"></div>
-                    <div>
-                        <b id="view-author"></b>
-                        <div id="view-stats" style="font-size:12px; color:#aaa;"></div>
+            <div class="custom-player-wrapper" id="player-container">
+                <canvas id="player-canvas" width="1280" height="720"></canvas>
+
+                <div id="video-ad-overlay" class="hidden">
+                    <div class="ad-wrapper">
+                        <ins class="adsbygoogle" style="display:block; width:300px; height:250px" data-ad-client="ca-pub-2540728945165922" data-ad-slot="9476309341" data-ad-format="rectangle"></ins>
+                        <script>
+                            (adsbygoogle = window.adsbygoogle || []).push({});
+                        </script>
+
+                        <button id="skip-ad-btn" onclick="finishAd()" disabled>Ждите 5с...</button>
                     </div>
                 </div>
-                <div class="action-btns">
+
+                <div id="player-overlay" class="player-overlay"></div>
+
+                <div class="player-ui">
+                    <div class="progress-area" id="progress-container">
+                        <div class="bar-bg"></div>
+                        <div id="progress-load" class="bar-load"></div>
+                        <div id="progress-play" class="bar-play">
+                            <div class="progress-handle"></div>
+                        </div>
+                    </div>
+
+                    <div class="ui-controls">
+                        <div class="ui-left">
+                            <button onclick="togglePlay()" id="play-pause-btn" class="ui-btn">▶</button>
+                            <button onclick="toggleMute()" id="mute-btn" class="ui-btn">🔊</button>
+                            <span id="timestamp" class="timestamp">0:00 / 0:00</span>
+                        </div>
+                        <div class="ui-right">
+                            <select onchange="setPlaybackSpeed(this.value)" class="ui-select">
+                                <option value="1">1x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                            <button onclick="toggleFullscreen()" class="ui-btn">⛶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="video-meta-bar">
+                <h2 id="view-title"></h2>
+                <div class="author-info">
+                    <div class="large-avatar" id="view-author-avatar"></div>
+                    <div class="meta-text">
+                        <b id="view-author"></b>
+                        <span id="view-stats"></span>
+                    </div>
                     <button id="view-sub-btn" class="sub-btn">Subscribe</button>
-                    <button onclick="handleLike()">❤️ <span id="view-likes">0</span></button>
+                    <button onclick="handleLike()" class="like-btn">❤️ <span id="view-likes">0</span></button>
+                </div>
+            </div>
+            <div class="comments-section" id="comments-root">
+                <div class="comments-header" onclick="toggleCommentsMobile()">
+                    <h3>Comments <span id="comments-count">0</span></h3>
+                    <button class="expand-icon">▼</button>
+                </div>
+
+                <div class="comments-content" id="comments-content">
+                    <div class="comment-input-area">
+                        <input type="text" id="comment-text" placeholder="Add a comment...">
+                        <button class="primary-btn" onclick="postComment()">Send</button>
+                    </div>
+                    <div id="comments-list" class="comments-list"></div>
                 </div>
             </div>
         </section>
@@ -67,6 +120,8 @@
 
     <div id="modal-settings" class="modal-overlay hidden">
         <div class="auth-card">
+            <button class="icon-btn" onclick="openDocs()" title="Documentation">📖</button>
+            <button class="icon-btn" onclick="openPass()" title="Change Password">🔑</button>
             <h3>Channel Settings</h3>
             <p>New username:</p>
             <input type="text" id="set-new-name" style="width:100%; padding:10px; margin-bottom:10px;">
@@ -78,18 +133,68 @@
             <button class="text-btn" style="width:100%" onclick="closeModal('modal-settings')">Cancel</button>
         </div>
     </div>
+    <div id="modal-docs" class="modal-overlay hidden">
+        <div class="modal-content docs-card">
+            <div class="docs-header">
+                <h2>📖 Документация WavyTube</h2>
+                <button class="close-btn" onclick="closeModal('modal-docs')">×</button>
+            </div>
+            <div class="docs-body">
+                <h3>1. Система баз данных</h3>
+                <p>Ваши видео хранятся в нескольких базах Firebase. Система автоматически переключается на новую базу, когда текущая заполняется (лимит 1 ГБ).</p>
 
+                <h3>2. Возрастные ограничения</h3>
+                <p>При регистрации указывается дата рождения. Видео с пометкой 18+ скрываются автоматически, если вам меньше 18 лет. Если дата не указана, по умолчанию ставится 10 лет.</p>
+
+                <h3>3. Управление каналами</h3>
+                <p>Вы можете искать каналы, вводя в поиске <code>!имя_канала</code>. Владелец канала может удалять свои видео.</p>
+
+                <h3>4. Администрирование</h3>
+                <p>Для входа в панель управления необходимо иметь права администратора. Панель позволяет менять возрастные цензы и удалять контент во всех базах сразу.</p>
+            </div>
+            <button class="primary-btn" onclick="closeModal('modal-docs')">Понятно</button>
+        </div>
+    </div>
+
+    <style>
+        .docs-card { max-width: 700px; width: 90%; text-align: left; }
+        .docs-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; margin-bottom: 15px; }
+        .docs-body { max-height: 60vh; overflow-y: auto; padding-right: 10px; line-height: 1.6; }
+        .docs-body h3 { color: var(--accent-color, #ff4d4d); margin-top: 20px; }
+        .docs-body code { background: #222; padding: 2px 5px; border-radius: 4px; }
+    </style>
     <div id="modal-auth" class="modal-overlay hidden">
         <div class="auth-card">
             <h3>Login / Registration</h3>
             <input type="text" id="auth-username" placeholder="Nickname" style="width:100%; padding:10px; margin:10px 0;">
+            
+            <p style="font-size:12px; margin:5px 0; text-align:left;">Date of Birth:</p>
+            <input type="date" id="auth-birthday" style="width:100%; padding:10px; margin-bottom:10px;">
+            <input type="password" id="auth-password" placeholder="Пароль" style="width:100%; padding:10px; margin-bottom:10px;">
             <button class="primary-btn" style="width:100%" onclick="performLogin()">Continue</button>
         </div>
     </div>
-
+    <div id="settings-password-section" class="modal-overlay hidden" style="position:fixed; top:50%; left:50%; z-index: 1000; transform:translate(-50%, -50%); background:#222; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.5); width:300px; z-index:1001;">
+        <div class="auth-card">
+            <h3>Change Password</h3>
+            <input type="password" id="old-password" placeholder="Old Password" style="width:100%; padding:10px; margin-bottom:10px;">
+            <input type="password" id="new-password" placeholder="New Password" style="width:100%; padding:10px; margin-bottom:10px;">
+            <button class="primary-btn" onclick="changeUserPassword()" style="width:100%">Update Password</button>
+            <button class="text-btn" onclick="document.getElementById('settings-password-section').classList.add('hidden')" style="width:100%; margin-top:10px;">Cancel</button>
+        </div>
+    </div>
     <div id="modal-upload" class="modal-overlay hidden">
         <div class="upload-card">
             <input type="text" id="v-title" placeholder="Title" style="width:100%; padding:10px; margin-bottom:10px;">
+
+            <p style="font-size:12px; margin:5px 0;">Age Limit:</p>
+            <select id="v-age-limit" style="width:100%; padding:8px; margin-bottom:10px;">
+                <option value="0">0+ (For all)</option>
+                <option value="9">9+</option>
+                <option value="12">12+</option>
+                <option value="16">16+</option>
+                <option value="18">18+</option>
+            </select>
 
             <p style="font-size:12px; margin:5px 0;">Video thumbnail (automatic or choose your own):</p>
             <input type="file" id="v-custom-thumb" accept="image/*" style="margin-bottom:10px; font-size:12px;">
@@ -110,6 +215,8 @@
     <script src="js/reg.js"></script>
     <script src="js/recommendations.js"></script>
     <script src="js/video.js"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2540728945165922"></script>
+
 </body>
 
 </html>
