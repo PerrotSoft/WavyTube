@@ -1,115 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WavyTube</title>
-    <link rel="stylesheet" href="css/site.css">
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-</head>
+    <title>My Super Tool | Главная</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 15px; }
+        button { background: #007bff; color: white; border: none; padding: 15px 30px; margin: 10px; border-radius: 5px; cursor: pointer; font-size: 18px; }
+        button:hover { background: #0056b3; }
+        .ad-box { width: 300px; height: 250px; background: #333; margin: 20px auto; display: flex; align-items: center; justify-content: center; border: 1px dashed #666; color: #999; }
+        footer { margin-top: 50px; font-size: 12px; color: #666; }
+        a { color: #007bff; text-decoration: none; }
+    </style>
 
-<body data-theme="dark">
-    <header class="main-header">
-        <div class="header-left">
-            <button id="back-btn" class="icon-btn hidden" onclick="closeVideoView()">⬅</button>
-            <div class="logo" onclick="location.reload()">Wavy<span>Tube</span></div>
+    </head>
+<body>
+
+    <div class="container">
+        <h1>Мой Полезный Сервис</h1>
+        <p>Нажми на одну из кнопок, чтобы выполнить действие:</p>
+        
+        <button onclick="alert('Действие 1 выполнено!')">Кнопка 1</button>
+        <button onclick="alert('Действие 2 выполнено!')">Кнопка 2</button>
+
+        <div class="ad-box">
+            Здесь будет реклама 300x250
         </div>
-        <div class="search-bar">
-            <button id="header-upload-btn" class="upload-trigger hidden" onclick="openUploadModal()">✚</button>
-            <input type="text" id="video-search" placeholder="Search (or !channel)..." oninput="handleVideoSearch()">
-        </div>
-        <div id="user-avatar" class="user-avatar-btn" onclick="handleProfileClick()"></div>      
-    </header>
 
-    <div id="main-layout" class="layout-grid">
-        <section id="video-view-section" class="hidden">
-            <div class="player-container">
-                <video id="main-video-player" controls autoplay></video>
-                <div id="player-loader-bar"></div>
-            </div>
-            <div class="video-meta-bar">
-                <h2 id="view-title"></h2>
-                <div class="author-block" onclick="openCurrentAuthorChannel()">
-                    <div class="large-avatar" id="view-author-avatar"></div>
-                    <div>
-                        <b id="view-author"></b>
-                        <div id="view-stats" style="font-size:12px; color:#aaa;"></div>
-                    </div>
-                </div>
-                <div class="action-btns">
-                    <button id="view-sub-btn" class="sub-btn">Subscribe</button>
-                    <button onclick="handleLike()">❤️ <span id="view-likes">0</span></button>
-                </div>
-            </div>
-        </section>
-        <aside id="video-feed" class="video-grid"></aside>
-    </div>
-
-    <div id="channel-modal" class="modal-overlay hidden">
-        <div class="channel-container">
-            <div class="channel-header">
-                <div class="ch-profile">
-                    <div class="ch-avatar-large" id="ch-avatar-letter"></div>
-                    <div>
-                        <h2 id="ch-name" style="margin:0;"></h2>
-                        <div id="ch-subs-count" style="font-size:13px; color:#aaa; margin:5px 0;"></div>
-                        <p id="ch-desc-text" style="font-size:14px; opacity:0.8; margin:0;"></p>
-                    </div>
-                </div>
-                <div id="ch-actions"></div>
-                <button class="close-btn-simple" onclick="closeModal('channel-modal')">×</button>
-            </div>
-            <div id="ch-video-list" class="channel-video-list"></div>
+        <div style="text-align: left; margin-top: 30px;">
+            <h3>О проекте</h3>
+            <p>Этот сервис создан для быстрой обработки данных (или твоя цель). Мы стараемся сделать интернет проще и доступнее для каждого пользователя.</p>
         </div>
     </div>
 
-    <div id="modal-settings" class="modal-overlay hidden">
-        <div class="auth-card">
-            <h3>Channel Settings</h3>
-            <p>New username:</p>
-            <input type="text" id="set-new-name" style="width:100%; padding:10px; margin-bottom:10px;">
-            <p>Avatar:</p>
-            <input type="file" id="set-avatar-file" accept="image/*">
-            <p>Description:</p>
-            <textarea id="set-desc" style="width:100%; height:80px;"></textarea>
-            <button class="primary-btn" style="width:100%; margin-top:10px;" onclick="saveChannelSettings()">Save All</button>
-            <button class="text-btn" style="width:100%" onclick="closeModal('modal-settings')">Cancel</button>
-        </div>
-    </div>
+    <footer>
+        <a href="privacy.html">Политика конфиденциальности</a> | © 2026 MyProject
+    </footer>
 
-    <div id="modal-auth" class="modal-overlay hidden">
-        <div class="auth-card">
-            <h3>Login / Registration</h3>
-            <input type="text" id="auth-username" placeholder="Nickname" style="width:100%; padding:10px; margin:10px 0;">
-            <button class="primary-btn" style="width:100%" onclick="performLogin()">Continue</button>
-        </div>
-    </div>
-
-    <div id="modal-upload" class="modal-overlay hidden">
-        <div class="upload-card">
-            <input type="text" id="v-title" placeholder="Title" style="width:100%; padding:10px; margin-bottom:10px;">
-
-            <p style="font-size:12px; margin:5px 0;">Video thumbnail (automatic or choose your own):</p>
-            <input type="file" id="v-custom-thumb" accept="image/*" style="margin-bottom:10px; font-size:12px;">
-
-            <div id="preview-container" class="preview-zone hidden">
-                <img id="preview-img" style="max-width:100%; border-radius:8px;">
-            </div>
-
-            <input type="file" id="v-file" accept="video/*" hidden onchange="handleVideoSelect(this)">
-            <button class="secondary-btn" onclick="document.getElementById('v-file').click()">Select video file</button>
-
-            <button class="primary-btn hidden" id="upload-btn" onclick="startVideoUpload()">Upload video</button>
-            <button onclick="closeModal('modal-upload')">Close</button>
-        </div>
-    </div>
-
-    <script src="js/firebase.js"></script>
-    <script src="js/reg.js"></script>
-    <script src="js/recommendations.js"></script>
-    <script src="js/video.js"></script>
 </body>
-
 </html>
