@@ -3,40 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Super Tool | Главная</title>
+    <title>MultiHub Ultimate v3.0 | 🛠️ Мощный набор инструментов</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-        .container { max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 15px; }
-        button { background: #007bff; color: white; border: none; padding: 15px 30px; margin: 10px; border-radius: 5px; cursor: pointer; font-size: 18px; }
-        button:hover { background: #0056b3; }
-        .ad-box { width: 300px; height: 250px; background: #333; margin: 20px auto; display: flex; align-items: center; justify-content: center; border: 1px dashed #666; color: #999; }
-        footer { margin-top: 50px; font-size: 12px; color: #666; }
-        a { color: #007bff; text-decoration: none; }
+        :root { --bg: #0b0f1a; --card: #161b2c; --primary: #38bdf8; --accent: #f472b6; --text: #f8fafc; --input: #0f172a; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; min-height: 100vh; overflow-x: hidden; }
+        header { background: var(--card); padding: 25px; text-align: center; border-bottom: 2px solid #2d3748; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        nav { display: flex; justify-content: center; gap: 8px; padding: 12px; background: #1e293b; position: sticky; top: 0; z-index: 1000; flex-wrap: wrap; }
+        .nav-btn { background: #334155; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .nav-btn.active { background: var(--primary); color: #0f172a; font-weight: bold; }
+        .content { max-width: 1000px; margin: 30px auto; width: 95%; }
+        .tool-card { background: var(--card); padding: 30px; border-radius: 20px; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .tool-card.active { display: block; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        input, textarea, select { width: 100%; box-sizing: border-box; padding: 14px; border-radius: 10px; border: 1px solid #2d3748; background: var(--input); color: white; font-size: 15px; margin: 10px 0; outline: none; }
+        input:focus { border-color: var(--primary); }
+        .btn-main { background: var(--primary); color: #0f172a; border: none; padding: 15px 25px; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; margin-top: 10px; }
+        .result-box { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 10px; border-left: 5px solid var(--primary); min-height: 20px; white-space: pre-wrap; word-break: break-all; }
+        #wheel-wrap { position: relative; width: 300px; height: 300px; margin: 30px auto; }
+        canvas { width: 100%; height: 100%; border-radius: 50%; border: 4px solid #fff; transition: transform 4s cubic-bezier(0.1, 0, 0.2, 1); }
+        .pointer { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid var(--accent); z-index: 10; }
+        .ad-banner { background: rgba(255,255,255,0.02); border: 1px dashed #2d3748; margin: 25px 0; min-height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
     </style>
-
-    </head>
+    <script src="https://quge5.com/88/tag.min.js" data-zone="225564" async data-cfasync="false"></script>
+</head>
 <body>
 
-    <div class="container">
-        <h1>Мой Полезный Сервис</h1>
-        <p>Нажми на одну из кнопок, чтобы выполнить действие:</p>
-        
-        <button onclick="alert('Действие 1 выполнено!')">Кнопка 1</button>
-        <button onclick="alert('Действие 2 выполнено!')">Кнопка 2</button>
+<header>
+    <h1>MultiHub v3.0 🚀</h1>
+</header>
 
-        <div class="ad-box">
-            Здесь будет реклама 300x250
-        </div>
+<nav>
+    <button class="nav-btn active" onclick="tab('wheel')">🎡 Колесо</button>
+    <button class="nav-btn" onclick="tab('trans')">🌐 Перевод</button>
+    <button class="nav-btn" onclick="tab('dev')">👨‍💻 DevTools</button>
+    <button class="nav-btn" onclick="tab('text')">🔤 Текст</button>
+    <button class="nav-btn" onclick="tab('pass')">🔐 Пароли</button>
+</nav>
 
-        <div style="text-align: left; margin-top: 30px;">
-            <h3>О проекте</h3>
-            <p>Этот сервис создан для быстрой обработки данных (или твоя цель). Мы стараемся сделать интернет проще и доступнее для каждого пользователя.</p>
+<div class="content">
+    <div id="wheel" class="tool-card active">
+        <h2>🎡 Колесо Фортуны</h2>
+        <input type="text" id="w-input" value="Да, Нет, Может, Рискни" oninput="draw()">
+        <button class="btn-main" onclick="spin()">ЗАПУСТИТЬ</button>
+        <div id="wheel-wrap">
+            <div class="pointer"></div>
+            <canvas id="cv" width="500" height="500"></canvas>
         </div>
+        <div id="w-res" class="result-box" style="text-align: center; display: none; font-size: 22px;"></div>
     </div>
 
-    <footer>
-        <a href="privacy.html">Политика конфиденциальности</a> | © 2026 MyProject
-    </footer>
+    <div id="trans" class="tool-card">
+        <h2>🌐 Переводчик</h2>
+        <div style="display: flex; gap: 10px;">
+            <select id="from"><option value="ru">Русский</option><option value="en">English</option><option value="uk">Українська</option></select>
+            <select id="to"><option value="en">English</option><option value="ru">Русский</option><option value="uk">Українська</option></select>
+        </div>
+        <textarea id="t-in" rows="4" placeholder="Текст..."></textarea>
+        <button class="btn-main" onclick="translateMe()">ПЕРЕВЕСТИ</button>
+        <div id="t-out" class="result-box">Результат появится здесь...</div>
+    </div>
 
+    <div class="ad-banner">МЕСТО ДЛЯ РЕКЛАМЫ (MoneTag)</div>
+
+    <div id="dev" class="tool-card">
+        <h2>👨‍💻 Инструменты разработчика</h2>
+        <p><b>JSON Форматтер:</b></p>
+        <textarea id="j-in" rows="5" placeholder='{"id":1,"name":"test"}'></textarea>
+        <button class="btn-main" onclick="formatJSON()">ОТФОРМАТИРОВАТЬ JSON</button>
+        <div id="j-out" class="result-box"></div>
+    </div>
+
+    <div id="text" class="tool-card">
+        <h2>🔤 Работа с текстом</h2>
+        <textarea id="txt-in" rows="4" placeholder="Введите текст..." oninput="count()"></textarea>
+        <div id="cnt-res" class="result-box">Символов: 0 | Слов: 0</div>
+        <button class="btn-main" style="background: #444;" onclick="fixL()">ИСПРАВИТЬ РАСКЛАДКУ (ghbdtn -> привет)</button>
+    </div>
+
+    <div id="pass" class="tool-card">
+        <h2>🔐 Генератор паролей</h2>
+        <input type="number" id="p-len" value="16" min="4" max="50">
+        <button class="btn-main" onclick="genP()">СОЗДАТЬ ПАРОЛЬ</button>
+        <div id="p-res" class="result-box" onclick="copy('p-res')" style="cursor: pointer;">Нажми, чтобы создать...</div>
+    </div>
+</div>
+
+<script>
+    function tab(id) {
+        document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.currentTarget.classList.add('active');
+        if(id === 'wheel') draw();
+    }
+
+    // --- WHEEL ---
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    let deg = 0;
+
+    function draw() {
+        const list = document.getElementById('w-input').value.split(',').map(x => x.trim()).filter(x => x);
+        const arc = (Math.PI * 2) / list.length;
+        ctx.clearRect(0, 0, 500, 500);
+        list.forEach((t, i) => {
+            ctx.beginPath();
+            ctx.fillStyle = `hsl(${i * (360/list.length)}, 65%, 45%)`;
+            ctx.moveTo(250, 250);
+            ctx.arc(250, 250, 245, i * arc, (i + 1) * arc);
+            ctx.fill();
+            ctx.save();
+            ctx.translate(250, 250);
+            ctx.rotate(i * arc + arc/2);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 22px sans-serif";
+            ctx.fillText(t.slice(0, 14), 100, 10);
+            ctx.restore();
+        });
+    }
+
+    function spin() {
+        const list = document.getElementById('w-input').value.split(',').filter(x => x.trim());
+        const extra = Math.floor(Math.random() * 360) + 3600;
+        deg += extra;
+        cv.style.transform = `rotate(${deg}deg)`;
+        document.getElementById('w-res').style.display = 'none';
+        setTimeout(() => {
+            const idx = Math.floor((360 - (deg % 360)) / (360 / list.length)) % list.length;
+            document.getElementById('w-res').innerText = "🏆 ВЫПАЛО: " + list[idx];
+            document.getElementById('w-res').style.display = 'block';
+        }, 4000);
+    }
+
+    // --- TRANSLATE ---
+    async function translateMe() {
+        const input = document.getElementById('t-in').value;
+        const pair = document.getElementById('from').value + '|' + document.getElementById('to').value;
+        document.getElementById('t-out').innerText = "Перевожу...";
+        const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input)}&langpair=${pair}`);
+        const data = await res.json();
+        document.getElementById('t-out').innerText = data.responseData.translatedText;
+    }
+
+    // --- DEV ---
+    function formatJSON() {
+        try {
+            const val = JSON.parse(document.getElementById('j-in').value);
+            document.getElementById('j-out').innerText = JSON.stringify(val, null, 4);
+            document.getElementById('j-out').style.borderColor = "var(--primary)";
+        } catch(e) {
+            document.getElementById('j-out').innerText = "Ошибка: Неверный JSON формат";
+            document.getElementById('j-out').style.borderColor = "red";
+        }
+    }
+
+    // --- TEXT ---
+    function count() {
+        const s = document.getElementById('txt-in').value;
+        document.getElementById('cnt-res').innerText = `Символов: ${s.length} | Слов: ${s.trim() ? s.trim().split(/\s+/).length : 0}`;
+    }
+
+    function fixL() {
+        const s = document.getElementById('txt-in').value;
+        const m = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','[':'х',']':'ъ','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',';':'ж',"'":'э','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':'б','.':'ю'};
+        document.getElementById('txt-in').value = s.split('').map(x => m[x.toLowerCase()] || x).join('');
+    }
+
+    // --- PASS ---
+    function genP() {
+        const l = document.getElementById('p-len').value;
+        const c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        let r = "";
+        for(let i=0; i<l; i++) r += c[Math.floor(Math.random()*c.length)];
+        document.getElementById('p-res').innerText = r;
+    }
+
+    function copy(id) {
+        navigator.clipboard.writeText(document.getElementById(id).innerText);
+        alert("Скопировано!");
+    }
+
+    window.onload = draw;
+</script>
 </body>
 </html>
